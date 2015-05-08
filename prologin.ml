@@ -79,15 +79,38 @@ let valeur_portail2 p =
   let da = distance p (position_agent (adversaire ())) in
   let tours_restants = nb_tours - tour_actuel () - n in
   if u = (-1) then
-    (float_of_int (valeur_portail_me p)) /. ((nn +. 1.) *. (nn +. 0.5))
+    (float_of_int (valeur_portail_me p)) /. ((nn +. 1.) *. (nn +. 1.))
   else if u = moi () then
     0.
   else
-    (float_of_int ((valeur_portail_me p) + (valeur_portail_adv p))) /. ((nn +. 1.) *. (nn +. 0.5))
+    (float_of_int ((valeur_portail_me p) + (valeur_portail_adv p))) /. ((nn +. 1.) *. (nn +. 1.))
 ;;
 
+let make_links () =
+  List.iter (fun p -> ignore (lier p)) (portails_joueur (moi ()))
+;;
+        
+
+let captures = ref [];;
+let haunt () =
+  captures := !captures @ (Array.to_list (hist_portails_captures ()));
+  while (!captures <> []) && ((points_action () >= cout_turbo) || (points_deplacement () > 0)) do
+    let p = List.hd !captures in
+    move_towards p;
+    ignore (neutraliser ());
+    ignore (capturer ());
+    make_links ();
+    if (points_deplacement () = 0) then
+      ignore (utiliser_turbo ())
+    else
+      captures := List.tl !captures
+  done;
+  if (!captures = []) then
+    move_towards (position_agent (adversaire ()))
+;;
 
 let rec step () =
+  make_links ();
   let portails_pas_a_moi =
     (List.filter (fun pos -> portail_joueur pos <> moi ())
        (Array.to_list (liste_portails ()))) in
@@ -99,7 +122,10 @@ let rec step () =
     (*let closest = max_list_key portails_pas_a_moi
       (fun p -> 0.001 *. (float_of_int (distance p advpos)) +.
       (float_of_int (valeur_portail p)) /. (float_of_int (nbtours (distance mypos p)))) in *)
-    let closest = max_list_key portails_pas_a_moi valeur_portail2 in
+    (*let closest = max_list_key portails_pas_a_moi valeur_portail2 in*)
+    let close = min_list_key portails_pas_a_moi (distance mypos) in
+    let dd = (distance close mypos) in
+    let closest = max_list_key (List.filter (fun p -> ((distance mypos p)) <= dd) portails_pas_a_moi) valeur_portail2 in
     move_towards closest;
     let pp = portail_joueur closest in
     if (pp <> adversaire () && pp <> (-1)) then begin
@@ -108,10 +134,6 @@ let rec step () =
       try
         if (pp = adversaire ()) then begin neutraliserf () end;
         capturerf ();
-        List.iter (fun p ->
-          match lier p with
-            Pa_insuffisants -> failwith ""
-          | _ -> ()) (portails_joueur (moi ()));
         step ()
       with
         _ -> ()
@@ -151,8 +173,9 @@ let partie_init () =  (* Pose ton code ici *)
 ** Fonction appelée à chaque tour.
 *)
 let jouer_tour () =  (* Pose ton code ici *)
-  print_int 0;
-  step ();
+  (*print_int 0;
+    step ();*)
+  haunt ();
   flush stderr; flush stdout;; (* Pour que vos sorties s'affichent *)
 
 (*
