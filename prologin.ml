@@ -70,6 +70,7 @@ let valeur_portail p =
 
 let nbtours dist = (dist + nb_points_deplacement - 1) / nb_points_deplacement;;
 
+
 let valeur_portail2 p =
   let u = portail_joueur p in
   let d = distance p (position_agent (moi ())) in
@@ -90,24 +91,6 @@ let make_links () =
   List.iter (fun p -> ignore (lier p)) (portails_joueur (moi ()))
 ;;
         
-
-let captures = ref [];;
-let haunt () =
-  captures := !captures @ (Array.to_list (hist_portails_captures ()));
-  while (!captures <> []) && ((points_action () >= cout_turbo) || (points_deplacement () > 0)) do
-    let p = List.hd !captures in
-    move_towards p;
-    ignore (neutraliser ());
-    ignore (capturer ());
-    make_links ();
-    if (points_deplacement () = 0) then
-      ignore (utiliser_turbo ())
-    else
-      captures := List.tl !captures
-  done;
-  if (!captures = []) then
-    move_towards (position_agent (adversaire ()))
-;;
 
 let rec step () =
   make_links ();
@@ -141,27 +124,33 @@ let rec step () =
   end
 ;;
 
-
+let captures = ref [];;
+let haunt () =
+  captures := !captures @ (Array.to_list (hist_portails_captures ()));
+  begin
+  try
+    while (!captures <> []) && ((points_action () >= cout_turbo) || (points_deplacement () > 0)) do
+      let p = List.hd !captures in
+      move_towards p;
+      ignore (neutraliser ());
+      ignore (capturer ());
+      make_links ();
+      if (points_deplacement () = 0) then
+        ignore (utiliser_turbo ())
+      else if (portail_joueur p) = moi () && points_action () > cout_lien then
+        captures := List.tl !captures
+      else
+        failwith ""
+    done
+  with
+    _ -> ()
+  end
+  ;
+  if (!captures = []) then (* back to normal way *)
+    step ()
     
-
-(*
-let prog_con () =
-  
+(*move_towards (position_agent (adversaire ()))*)
 ;;
-*)
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 (*
 ** Fonction appelée au début de la partie.
