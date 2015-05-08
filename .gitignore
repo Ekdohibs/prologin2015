@@ -1,0 +1,8 @@
+*.cmi
+*.cmo
+*.o
+*.cds
+*.so
+*.tgz
+.interface.o.d
+*~
