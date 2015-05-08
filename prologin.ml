@@ -18,13 +18,14 @@ let min_list_key l key =
 ;;
 
 let move_towards (x, y) =
-  let d = points_deplacements () in
+  let d = points_deplacement () in
   let (xx, yy) = position_agent (moi ()) in
   let adx = min (abs (x - xx)) d in
   let ady = min (abs (y - yy)) (d - adx) in
   let dx = if xx < x then adx else -adx in
   let dy = if yy < y then ady else -ady in
-  deplacer (x + dx, y + dy)
+  afficher_position (xx + dx, yy + dy); afficher_position (x, y);
+  ignore (deplacer (xx + dx, yy + dy))
 ;;
 
 let err f x =
@@ -43,16 +44,17 @@ let rec prog_con_step () =
     (List.filter (fun pos -> portail_joueur pos <> moi ())
        (Array.to_list (liste_portails ())))
     (distance (position_agent (moi ()))) in
+  afficher_position closest;
   move_towards closest;
   let pp = portail_joueur closest in
   if (pp <> adversaire () && pp <> (-1)) then begin
     if (utiliser_turbo ()) = Ok then prog_con_step ()
   end else begin
     try
-      if (pp = (-1)) then begin neutraliserf () end;
-      capturef ();
+      if (pp = adversaire ()) then begin neutraliserf () end;
+      capturerf ();
       Array.iter (fun p ->
-        let match lier p with
+        match lier p with
             Pa_insuffisants -> failwith ""
           | _ -> ()) (liste_portails ());
       prog_con_step ()
@@ -90,6 +92,7 @@ let partie_init () =  (* Pose ton code ici *)
 ** Fonction appelée à chaque tour.
 *)
 let jouer_tour () =  (* Pose ton code ici *)
+  print_int 0;
   prog_con_step ();
   flush stderr; flush stdout;; (* Pour que vos sorties s'affichent *)
 
