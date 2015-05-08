@@ -85,32 +85,33 @@ let valeur_portail p =
     (valeur_portail_build p (moi ())) + (valeur_portail_now p)
 ;;
 
-let nbtours dist = (dist + nb_points_deplacement - 1) / nb_points_deplacement;;
+let nbtours dist = (dist + points_deplacement () - 1) / nb_points_deplacement;;
 
 
 let valeur_portail2 p =
   let u = portail_joueur p in
   let d = distance p (position_agent (moi ())) in
+  let n = d + 3 * (nbtours d) in
   (*let n = nbtours d in*)
-  let n = d in
+  (*let n = d in*)
   let nn = float_of_int n in
   let da = distance p (position_agent (adversaire ())) in
   let tours_restants = nb_tours - tour_actuel () - n in
   if u = (-1) then
   (*(float_of_int (valeur_portail_me p)) /. ((nn +. 1.) *. (nn +. 1.))*)
-    -200 * d + (valeur_portail_build p (moi ()))
+    -40 * n + (1 * (valeur_portail_build p (moi ())))
   else if u = moi () then
     min_int
   else
 (*(float_of_int ((valeur_portail_me p) + (valeur_portail_adv p))) /. ((nn +. 1.) *. (nn +. 1.))*)
-    -200 * d + ((valeur_portail_build p (moi ())) + 5 * (valeur_portail_now p))
+    -40 * n + (1 * (valeur_portail_build p (moi ())) + (valeur_portail_now p))
 ;;
 
 let make_links () =
   List.iter (fun p -> ignore (lier p)) (portails_joueur (moi ()))
 ;;
 
-let shield_values = [|10; 50; 150; 500; 1000; 2000; max_int|];;
+let shield_values = [|10; 50; 150; 1000; 2000; 4000; max_int|];;
 let make_shields () =
   let p = position_agent (moi ()) in
   let value = valeur_portail_now p + valeur_portail_build p (adversaire ()) in
@@ -125,38 +126,38 @@ let make_shields () =
 ;;
 
 
+let objective = ref None;;
 let rec step () =
   make_links ();
   make_shields ();
-  let portails_pas_a_moi =
-    (List.filter (fun pos -> portail_joueur pos <> moi ())
-       (Array.to_list (liste_portails ()))) in
-  if portails_pas_a_moi = [] then () else begin
-    (*let closest = min_list_key portails_pas_a_moi
-      (fun distance (position_agent (moi ()))) in*)
-    let mypos = position_agent (moi ()) in
-    let advpos = position_agent (adversaire ()) in
-    (*let closest = max_list_key portails_pas_a_moi
-      (fun p -> 0.001 *. (float_of_int (distance p advpos)) +.
-      (float_of_int (valeur_portail p)) /. (float_of_int (nbtours (distance mypos p)))) in *)
-    let closest = max_list_key portails_pas_a_moi valeur_portail2 in
-    afficher_position closest; print_int (valeur_portail2 closest);
-    (*let close = min_list_key portails_pas_a_moi (distance mypos) in
-    let dd = (distance close mypos) in
-      let closest = max_list_key (List.filter (fun p -> ((distance mypos p)) <= dd) portails_pas_a_moi) valeur_portail2 in*)
-    move_towards closest;
-    let pp = portail_joueur closest in
-    if (pp <> adversaire () && pp <> (-1)) then begin
+  if (points_deplacement () > 0) && (points_action () >= cout_lien) then
+    objective := None;
+  if !objective = None then begin
+    let portails_pas_a_moi =
+      (List.filter (fun pos -> portail_joueur pos <> moi ())
+         (Array.to_list (liste_portails ()))) in
+    if portails_pas_a_moi = [] then () else begin
+      let closest = max_list_key portails_pas_a_moi valeur_portail2 in
+      print_string "Turn "; print_int (tour_actuel ());
+      afficher_position closest; print_int (valeur_portail2 closest);
+      objective := Some closest
+    end
+  end;
+  match !objective with
+    None -> ()
+  | Some p ->
+    move_towards p;
+    let player = portail_joueur (position_agent (moi ())) in
+    if (player <> adversaire () && player <> (-1)) then begin
       if (utiliser_turbo ()) = Ok then step ()
     end else begin
       try
-        if (pp = adversaire ()) then begin neutraliserf () end;
+        if (player = adversaire ()) then begin neutraliserf () end;
         capturerf ();
         step ()
       with
         _ -> ()
     end
-  end
 ;;
 
 let should_take p =
