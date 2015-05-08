@@ -24,7 +24,6 @@ let move_towards (x, y) =
   let ady = min (abs (y - yy)) (d - adx) in
   let dx = if xx < x then adx else -adx in
   let dy = if yy < y then ady else -ady in
-  afficher_position (xx + dx, yy + dy); afficher_position (x, y);
   ignore (deplacer (xx + dx, yy + dy))
 ;;
 
@@ -40,26 +39,28 @@ let lierf = err lier;;
 
 
 let rec prog_con_step () =
-  let closest = min_list_key
+  let portails_pas_a_moi =
     (List.filter (fun pos -> portail_joueur pos <> moi ())
-       (Array.to_list (liste_portails ())))
-    (distance (position_agent (moi ()))) in
-  afficher_position closest;
-  move_towards closest;
-  let pp = portail_joueur closest in
-  if (pp <> adversaire () && pp <> (-1)) then begin
-    if (utiliser_turbo ()) = Ok then prog_con_step ()
-  end else begin
-    try
-      if (pp = adversaire ()) then begin neutraliserf () end;
-      capturerf ();
-      Array.iter (fun p ->
-        match lier p with
+       (Array.to_list (liste_portails ()))) in
+  if portails_pas_a_moi = [] then () else begin
+    let closest = min_list_key portails_pas_a_moi
+      (distance (position_agent (moi ()))) in
+    move_towards closest;
+    let pp = portail_joueur closest in
+    if (pp <> adversaire () && pp <> (-1)) then begin
+      if (utiliser_turbo ()) = Ok then prog_con_step ()
+    end else begin
+      try
+        if (pp = adversaire ()) then begin neutraliserf () end;
+        capturerf ();
+        Array.iter (fun p ->
+          match lier p with
             Pa_insuffisants -> failwith ""
           | _ -> ()) (liste_portails ());
-      prog_con_step ()
-    with
-      _ -> ()
+        prog_con_step ()
+      with
+        _ -> ()
+    end
   end
 ;;
 
