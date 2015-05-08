@@ -17,6 +17,11 @@ let min_list_key l key =
   min_list l (fun x y -> key x < key y)
 ;;
 
+let max_list_key l key =
+  min_list l (fun x y -> key x > key y)
+;;
+
+
 let move_towards (x, y) =
   let d = points_deplacement () in
   let (xx, yy) = position_agent (moi ()) in
@@ -38,31 +43,84 @@ let capturerf = err capturer;;
 let lierf = err lier;;
 
 
-let rec prog_con_step () =
+let portails_joueur joueur =
+  List.filter (fun pos -> portail_joueur pos = joueur) (Array.to_list (liste_portails ()))
+;;
+
+let score_champ ch = score_triangle ch.som1 ch.som2 ch.som3;;
+let valeur_portail_adv p =
+  List.fold_left (+) 0 (List.map score_champ (Array.to_list (champs_incidents_portail p)))
+;;
+let valeur_portail_me p =
+  (List.fold_left (+) 0
+    (List.map
+       (fun pp -> if (p = pp || lien_existe p pp) then 0 else
+           List.fold_left (+) 0 (List.map score_champ (Array.to_list (champs_incidents_segment p pp))))
+    (portails_joueur (moi ())))) + points_capture
+
+let valeur_portail p =
+  let u = portail_joueur p in
+  if u = (-1) then
+    valeur_portail_me p
+  else if u = moi () then
+    0
+  else
+    (valeur_portail_me p) + (valeur_portail_adv p)
+;;
+
+let nbtours dist = (dist + nb_points_deplacement - 1) / nb_points_deplacement;;
+
+let valeur_portail2 p =
+  let u = portail_joueur p in
+  let d = distance p (position_agent (moi ())) in
+  (*let n = nbtours d in*)
+  let n = d in
+  let nn = float_of_int n in
+  let da = distance p (position_agent (adversaire ())) in
+  let tours_restants = nb_tours - tour_actuel () - n in
+  if u = (-1) then
+    (float_of_int (valeur_portail_me p)) /. ((nn +. 1.) *. (nn +. 0.5))
+  else if u = moi () then
+    0.
+  else
+    (float_of_int ((valeur_portail_me p) + (valeur_portail_adv p))) /. ((nn +. 1.) *. (nn +. 0.5))
+;;
+
+
+let rec step () =
   let portails_pas_a_moi =
     (List.filter (fun pos -> portail_joueur pos <> moi ())
        (Array.to_list (liste_portails ()))) in
   if portails_pas_a_moi = [] then () else begin
-    let closest = min_list_key portails_pas_a_moi
-      (distance (position_agent (moi ()))) in
+    (*let closest = min_list_key portails_pas_a_moi
+      (fun distance (position_agent (moi ()))) in*)
+    let mypos = position_agent (moi ()) in
+    let advpos = position_agent (adversaire ()) in
+    (*let closest = max_list_key portails_pas_a_moi
+      (fun p -> 0.001 *. (float_of_int (distance p advpos)) +.
+      (float_of_int (valeur_portail p)) /. (float_of_int (nbtours (distance mypos p)))) in *)
+    let closest = max_list_key portails_pas_a_moi valeur_portail2 in
     move_towards closest;
     let pp = portail_joueur closest in
     if (pp <> adversaire () && pp <> (-1)) then begin
-      if (utiliser_turbo ()) = Ok then prog_con_step ()
+      if (utiliser_turbo ()) = Ok then step ()
     end else begin
       try
         if (pp = adversaire ()) then begin neutraliserf () end;
         capturerf ();
-        Array.iter (fun p ->
+        List.iter (fun p ->
           match lier p with
             Pa_insuffisants -> failwith ""
-          | _ -> ()) (liste_portails ());
-        prog_con_step ()
+          | _ -> ()) (portails_joueur (moi ()));
+        step ()
       with
         _ -> ()
     end
   end
 ;;
+
+
+    
 
 (*
 let prog_con () =
@@ -94,7 +152,7 @@ let partie_init () =  (* Pose ton code ici *)
 *)
 let jouer_tour () =  (* Pose ton code ici *)
   print_int 0;
-  prog_con_step ();
+  step ();
   flush stderr; flush stdout;; (* Pour que vos sorties s'affichent *)
 
 (*
