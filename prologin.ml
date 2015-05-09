@@ -299,7 +299,7 @@ let _valeur_portail_build p player =
   if portail_joueur p = (-2) then
     0
   else if Array.length (case_champs p) > 0 then
-    points_capture
+    0
   else begin
     (*make_link_cache p;*)
     (List.fold_left (+) 0
@@ -313,7 +313,7 @@ let _valeur_portail_build p player =
               0
             else
               score_triangle p p1 p2)
-          (Array.to_list (liste_liens ())))) + points_capture
+          (Array.to_list (liste_liens ()))))
   end
 ;;
 let vpb_cache = Array.make (2 * taille_terrain * taille_terrain) None;;
@@ -347,11 +347,11 @@ let valeur_portail p =
   if u = (-2) then
     0
   else if u = (-1) then
-    valeur_portail_build p (moi ())
+    valeur_portail_build p (moi ()) + points_capture
   else if u = moi () then
     0
   else
-    (valeur_portail_build p (moi ())) + (valeur_portail_now p)
+    (valeur_portail_build p (moi ())) + (valeur_portail_now p) + points_capture
 ;;
 
 
@@ -360,11 +360,11 @@ let valeur_portail_any p =
   if u = (-2) then
     0
   else if u = (-1) then
-    (valeur_portail_build p (moi ())) + (valeur_portail_build p (adversaire ()))
+    (valeur_portail_build p (moi ())) + (valeur_portail_build p (adversaire ())) + 2 * points_capture
   else if u = moi () then
-    (valeur_portail_now p) + (valeur_portail_build p (adversaire ()))
+    (valeur_portail_now p) + (valeur_portail_build p (adversaire ())) + points_capture
   else
-    (valeur_portail_now p) + (valeur_portail_build p (moi ()))
+    (valeur_portail_now p) + (valeur_portail_build p (moi ())) + points_capture
 ;;
 
 
@@ -448,12 +448,12 @@ let valeur_portail2 p =
     min_int
   else if u = (-1) then
   (*(float_of_int (valeur_portail_me p)) /. ((nn +. 1.) *. (nn +. 1.))*)
-    -40 * n - 20 * da + (1 * (valeur_portail_build p (moi ())))
+    -40 * n - 20 * da + (valeur_portail_build p (moi ())) + points_capture
   else if u = moi () then
-    min_int
+    -40 * n - 20 * da + (valeur_portail_build p (moi ())) + points_capture
   else
 (*(float_of_int ((valeur_portail_me p) + (valeur_portail_adv p))) /. ((nn +. 1.) *. (nn +. 1.))*)
-    -40 * n - 20 * da + (1 * (valeur_portail_build p (moi ())) + (valeur_portail_now p))
+    -40 * n - 20 * da + (valeur_portail_build p (moi ())) + (valeur_portail_now p) + points_capture
 ;;
 
 let _make_links () =
@@ -514,7 +514,7 @@ let make_links = logged make_links "make_links";;
 let shield_values = [|10; 50; 200; 400; 400; 400; max_int|];;
 let _make_shields () =
   let p = position_agent (moi ()) in
-  let value = valeur_portail_now p + valeur_portail_build p (adversaire ()) in
+  let value = valeur_portail_now p + valeur_portail_build p (adversaire ()) + points_capture in
   let i = ref 0 in
   while value >= shield_values.(!i) do
     incr i
