@@ -1,11 +1,7 @@
-(*
-** This file has been generated, if you wish to
-** modify it in a permanent way, please refer
-** to the script file : gen/generator_caml.rb
-*)
-
 open Api;;
 
+(* Helpers *)
+(* Minimum of a list with a custom comparaison function *)
 let min_list l ( < ) =
   match l with
     [] -> failwith "empty list"
@@ -13,6 +9,7 @@ let min_list l ( < ) =
     List.fold_left (fun u v -> if u < v then u else v) h t
 ;;
 
+(* Minimum a a list with a "key" function; key are compared instead of values *)
 let min_list_key l key =
   min_list l (fun x y -> key x < key y)
 ;;
@@ -21,27 +18,75 @@ let max_list_key l key =
   min_list l (fun x y -> key x > key y)
 ;;
 
-
+(* nth biggest element in a list with a "key" function *)
 let max_nth_list_key index l key =
-(*min_list l (fun x y -> key x > key y)*)
   List.nth (List.sort (fun x y -> compare (key y) (key x)) l) index
 ;;
 
+
+(* Log a function's call and end of execution *)
 let logged f name =
-  (fun x -> (*let t = Unix.time () in*)
+  (fun x ->
     print_string name; print_newline ();
-            let r = f x in
-            (*        let tt = Unix.time () in*)
-            print_string name; print_string "end"; print_newline ();
-            (*            print_string name; print_string ": "; print_float (tt -. t); print_newline ();*)
-            r
+    let r = f x in
+    print_string name; print_string "end"; print_newline ();
+    r
   )
 ;;
 let logged f name = f;; (* disable logging *)
 
-(*
+(* Position getters shortcuts *)
+let mypos () = position_agent (moi ());;
+let advpos () = position_agent (adversaire ());;
+
+(* Get index of a position for arrays *)
+let index_pos (x, y) =
+  x * taille_terrain + y
+;;
+
+(* a <|> b returns [a; a + 1; ...; b - 1] *)
+let rec ( <|> ) a b =
+  if a >= b then
+    []
+  else
+    a :: ((a + 1) <|> b)
+;;
+(* a >|< b returns [a; a - 1; ...; b + 1] *)
+let rec ( >|< ) a b =
+  if a <= b then
+    []
+  else
+    a :: ((a - 1) >|< b)
+;;
+
+(* Check if a position is valid *)
+let position_valid (x, y) =
+  0 <= x && x < taille_terrain && 0 <= y && y < taille_terrain
+;;
+
+(* (Cartesian) product of two lists *)
+let rec list_product l1 l2 =
+  match l1 with
+    [] -> []
+  | x :: t -> (List.map (fun y -> (x, y)) l2) @ (list_product t l2)
+;;
+
+(* Transform a function return an error type into an error-raising one *)
+let err f x =
+  match (f x) with
+    Ok -> ()
+  | _ -> failwith ""
+;;
+
+(*       __         _    __
+** |  | |     /\   | \  /
+** |--| |-   /--\  |_/  \__
+** |  | |__ /    \ |    __/
+*)
+
 let max_taille_tas = 10000;;
 type 'a tas = {mutable size : int; data : 'a array};;
+
 let create_tas a = {size = 0; data = Array.make max_taille_tas a};;
 let swap t i j =
   let tmp = t.(i) in
@@ -58,6 +103,7 @@ let rec sift_up data i ( < ) =
     end
   end
 ;;
+
 let rec sift_down data size i ( < ) =
   let sg = 2 * i + 1 in
   let sd = sg + 1 in
@@ -76,28 +122,29 @@ let rec sift_down data size i ( < ) =
       swap data sg i; sift_down data size sg ( < )
     end
 ;;
+
 let push_tas tas x ( < ) =
   tas.data.(tas.size) <- x;
   sift_up tas.data tas.size ( < );
   tas.size <- tas.size + 1;
 ;;
+
 let pop_tas tas ( < ) =
   tas.size <- tas.size - 1;
   swap tas.data 0 tas.size;
   sift_down tas.data tas.size 0 ( < );
   tas.data.(tas.size)
 ;;
+
 let is_empty tas = tas.size = 0;;
+
+(*
+** Compute best path to go from p to p'
+** Best path means: among the shortest paths, take the ones where
+** the portals walked on have the highest value
 *)
 
-let mypos () = position_agent (moi ());;
-let advpos () = position_agent (adversaire ());;
-
-let index_pos (x, y) =
-  (*assert (0 <= x && x < taille_terrain && 0 <= y && y < taille_terrain);*)
-  x * taille_terrain + y
-;;
-
+(* Previous code, using Dijkstra; was replaced by dynamic programming for efficiency *)
 (*
 let vers p p' =
   afficher_position p; afficher_position p'; print_newline ();
@@ -140,40 +187,24 @@ let vers p p' =
     done;
     !chemin
   end
-  ;;*)
+;;
+*)
 
-let rec ( <|> ) a b =
-  if a >= b then
-    []
-  else
-    a :: ((a + 1) <|> b)
-;;
-let rec ( >|< ) a b =
-  if a <= b then
-    []
-  else
-    a :: ((a - 1) >|< b)
-;;
-
-let position_valid (x, y) =
-  0 <= x && x < taille_terrain && 0 <= y && y < taille_terrain
-;;
+(* List of all positions at distance d from (x, y) *)
 let pos_a_dist (x, y) d =
-  (*let dxp = min d (max_taille - 1 - x) in
-  let dxm = min d x in
-  let dyp = min d (max_taille - 1 - y) in
-    let dym = min d y in*)
   List.filter position_valid ((List.combine (x <|> x + d) (y + d >|< y)) @
                               (List.combine (x + d >|< x) (y >|< y - d)) @
                               (List.combine (x >|< x - d) (y - d <|> y)) @
                               (List.combine (x - d <|> x) (y <|> y + d)))
 ;;
 
+(* Check whether a position is a portail not owned by me *)
 let is_portail_not_me p =
   let u = portail_joueur p in
   u = (-1) || u = adversaire ()
 ;;
 
+(* Dummy move towards point *)
 let move_towards (x, y) =
   let d = points_deplacement () in
   let (xx, yy) = mypos () in
@@ -184,13 +215,11 @@ let move_towards (x, y) =
   ignore (deplacer (xx + dx, yy + dy))
 ;;
 
-(*let move_towards p =
-  ignore (deplacer (List.hd (vers (position_agent (moi ())) p)))
-  ;;*)
-
-(* Mise a jour de la liste des liens qui peuvent etre crees
-** Complexite 0(nbportails ^ 2 * nbLiensChanges)
+(*
+** We keep an array of all links that can be created; and update it
+** each time a link is created or destroyed
 **
+** Update complexity is in O(nb_portals ^ 2 * nb_changed_links) time
 **
 *)
 let portails_pos = ref [||];;
@@ -198,12 +227,9 @@ let nb_portails = ref 0;;
 let portails_id = Array.make (taille_terrain * taille_terrain) (-1);;
 let are_linked = ref [||];;
 let nb_blocking_links = ref [||];;
-(*
-** Fonction appelée au début de la partie.
-*)
-let partie_init () =  (* Pose ton code ici *)
+(* Initialize: read map informations and store it; init arrays *)
+let partie_init () =
   portails_pos := liste_portails ();
-  (*Array.iter afficher_position !portails_pos;*)
   nb_portails := Array.length !portails_pos; 
   Array.iteri (fun i p -> portails_id.(index_pos p) <- i) !portails_pos;
   are_linked := Array.init !nb_portails (fun i ->
@@ -211,8 +237,10 @@ let partie_init () =  (* Pose ton code ici *)
   nb_blocking_links := Array.init !nb_portails (fun i ->
     Array.make !nb_portails 0);
 
-  flush stderr; flush stdout;; (* Pour que vos sorties s'affichent *)
+  flush stderr; flush stdout (* Pour que vos sorties s'affichent *)
+;;
 
+(* Add a link and update the array of blocked links *)
 let link_add p1 p2 =
   Array.iteri (fun i p ->
     Array.iteri (fun j p' ->
@@ -221,6 +249,8 @@ let link_add p1 p2 =
     ) !portails_pos
   ) !portails_pos
 ;;
+
+(* Remove one *)
 let link_remove p1 p2 =
   Array.iteri (fun i p ->
     Array.iteri (fun j p' ->
@@ -229,14 +259,14 @@ let link_remove p1 p2 =
     ) !portails_pos
   ) !portails_pos
 ;;
+
+(* Update that on a new turn *)
 let update_blocking_links_newturn () =
-  (*print_string "ubln";*)
   let liens = liste_liens () in
   let ll = Array.init !nb_portails
     (fun i -> Array.make !nb_portails false) in
   Array.iter (fun link ->
     let u, v = portails_id.(index_pos link.extr1), portails_id.(index_pos link.extr2) in
-    (*print_int u; print_string " "; print_int v; print_newline ();*)
     ll.(u).(v) <- true; ll.(v).(u) <- true) liens;
   for i = 0 to !nb_portails - 1 do
     for j = 0 to !nb_portails - 1 do
@@ -247,18 +277,27 @@ let update_blocking_links_newturn () =
       !are_linked.(i).(j) <- ll.(i).(j)
     done
   done
-(*;print_string "ubln end"*)
 ;;
 let update_blocking_links_newturn = logged update_blocking_links_newturn "ubln";;
 
+(* Is a link blocked ? *)
+let link_blocked p1 p2 =
+  let u, v = portails_id.(index_pos p1), portails_id.(index_pos p2) in
+  !nb_blocking_links.(u).(v) > 0
+;;
+
+(* List of portals of a given player *)
 let portails_joueur joueur =
   List.filter (fun pos -> portail_joueur pos = joueur) (Array.to_list (liste_portails ()))
 ;;
 
+(* Score of a field *)
 let score_champ ch = score_triangle ch.som1 ch.som2 ch.som3;;
+(* Score of a given portal to the player that owns it *)
 let _valeur_portail_now p =
   List.fold_left (+) 0 (List.map score_champ (Array.to_list (champs_incidents_portail p)))
 ;;
+(* Cache that function *)
 let vpn_cache = Array.make (taille_terrain * taille_terrain) None;;
 let vpn_cache_clear = ref true;;
 let valeur_portail_now p =
@@ -270,6 +309,7 @@ let valeur_portail_now p =
   | Some r -> r
 ;;
 let valeur_portail_now = _valeur_portail_now;;
+(* Clear the cache *)
 let clear_vpn_cache () =
   if not (!vpn_cache_clear) then begin
     for i = 0 to (Array.length vpn_cache) - 1 do
@@ -279,29 +319,15 @@ let clear_vpn_cache () =
   end
 ;;
 
-let rec list_product l1 l2 =
-  match l1 with
-    [] -> []
-  | x :: t -> (List.map (fun y -> (x, y)) l2) @ (list_product t l2)
-;;
-
-(*let link_cache = Array.make (taille_terrain * taille_terrain) true;;
-let make_link_cache p =
-  Array.iter (fun p2 -> link_cache.(index_pos p) <- Array.length (liens_bloquants p p2) > 0)
-    (liste_portails ());
-;;
-  let link_blocked p2 = link_cache.(index_pos p2);;*)
-let link_blocked p1 p2 =
-  let u, v = portails_id.(index_pos p1), portails_id.(index_pos p2) in
-  !nb_blocking_links.(u).(v) > 0
-;;
+(* This time, score given by a portal if a player creates all links possible
+** It can be a bit higher than actual if several portals are aligned
+*)
 let _valeur_portail_build p player =
   if portail_joueur p = (-2) then
     0
   else if Array.length (case_champs p) > 0 then
     0
   else begin
-    (*make_link_cache p;*)
     (List.fold_left (+) 0
        (List.map
           (fun lien ->
@@ -316,6 +342,7 @@ let _valeur_portail_build p player =
           (Array.to_list (liste_liens ()))))
   end
 ;;
+(* Same as previously, cache that function *)
 let vpb_cache = Array.make (2 * taille_terrain * taille_terrain) None;;
 let vpb_cache_clear = ref true;;
 let valeur_portail_build p player =
@@ -339,47 +366,20 @@ let clear_caches () =
   clear_vpn_cache ();
   clear_vpb_cache ()
 ;;
-
 let valeur_portail_build = logged valeur_portail_build "vpb";;
 
-let valeur_portail p =
-  let u = portail_joueur p in
-  if u = (-2) then
-    0
-  else if u = (-1) then
-    valeur_portail_build p (moi ()) + points_capture
-  else if u = moi () then
-    0
-  else
-    (valeur_portail_build p (moi ())) + (valeur_portail_now p) + points_capture
-;;
-
-
-let valeur_portail_any p =
-  let u = portail_joueur p in
-  if u = (-2) then
-    0
-  else if u = (-1) then
-    (valeur_portail_build p (moi ())) + (valeur_portail_build p (adversaire ())) + 2 * points_capture
-  else if u = moi () then
-    (valeur_portail_now p) + (valeur_portail_build p (adversaire ())) + points_capture
-  else
-    (valeur_portail_now p) + (valeur_portail_build p (moi ())) + points_capture
-;;
-
-
 let newlink p1 p2 =
-  (*print_string "newlink";*)
   let u, v = portails_id.(index_pos p1), portails_id.(index_pos p2) in
   !are_linked.(u).(v) <- true; !are_linked.(v).(u) <- true;
   link_add p1 p2
 ;;
 let dellink p1 p2 =
-  (*print_string "dellink";*)
   let u, v = portails_id.(index_pos p1), portails_id.(index_pos p2) in
   !are_linked.(u).(v) <- false; !are_linked.(v).(u) <- false;
   link_remove p1 p2
 ;;
+
+(* Replace API functions with these new cache-aware ones *)
 let neutral () =
   let p = position_agent (moi ()) in
   let liens = liens_incidents_portail p in
@@ -402,16 +402,37 @@ let capture () =
 ;;
 let capturer = "This should not be called anymore; use capture instead";;
 
-let err f x =
-  match (f x) with
-    Ok -> ()
-  | _ -> failwith ""
+(* Score of a portal *)
+let valeur_portail p =
+  let u = portail_joueur p in
+  if u = (-2) then
+    0
+  else if u = (-1) then
+    valeur_portail_build p (moi ()) + points_capture
+  else if u = moi () then
+    0
+  else
+    (valeur_portail_build p (moi ())) + (valeur_portail_now p) + points_capture
+;;
+
+(* Score of a portal *)
+let valeur_portail_any p =
+  let u = portail_joueur p in
+  if u = (-2) then
+    0
+  else if u = (-1) then
+    (valeur_portail_build p (moi ())) + (valeur_portail_build p (adversaire ())) + 2 * points_capture
+  else if u = moi () then
+    (valeur_portail_now p) + (valeur_portail_build p (adversaire ())) + points_capture
+  else
+    (valeur_portail_now p) + (valeur_portail_build p (moi ())) + points_capture
 ;;
 
 let neutraliserf = err neutral;;
 let capturerf = err capture;;
 let lierf = err make_link;;
 
+(* Get best path towards p as previously *)
 let vers p =
   let cp = position_agent (moi ()) in
   let dt = Array.make (taille_terrain * taille_terrain) (-1, []) in
@@ -431,81 +452,77 @@ let vers p =
   snd (dt.(index_pos p))
 ;;
 
-
+(* Naive function giving the number of turns to go from a point to another *)
 let nbtours dist = (dist + points_deplacement () - 1) / nb_points_deplacement;;
-
-
 let valeur_portail2 p =
   let u = portail_joueur p in
   let d = distance p (position_agent (moi ())) in
   (*let n = d + 3 * (nbtours d) in*)
   (*let n = 8 * (nbtours d) in*)
   let n = d + (nbtours d) in
-  (*let n = nbtours d in*)
-  (*let n = d in*)
   let nn = float_of_int n in
   let da = distance p (position_agent (adversaire ())) in
   let tours_restants = nb_tours - tour_actuel () - n in
   if u = (-2) then
     min_int
   else if u = (-1) then
-  (*(float_of_int (valeur_portail_me p)) /. ((nn +. 1.) *. (nn +. 1.))*)
     -15 * n - 10 * da + (valeur_portail_build p (moi ())) + points_capture
   else if u = moi () then
     -15 * n - 10 * da + (valeur_portail_build p (moi ())) + points_capture
   else
-(*(float_of_int ((valeur_portail_me p) + (valeur_portail_adv p))) /. ((nn +. 1.) *. (nn +. 1.))*)
     -15 * n - 10 * da + (valeur_portail_build p (moi ())) + (valeur_portail_now p) + points_capture
 ;;
 
+(* Make best possible links *)
 let _make_links () =
   let build_links = (points_action ()) / cout_lien in
   let p = position_agent (moi ()) in
-  (*print_int (portail_joueur p);*)
   let cn = (List.filter (fun p' -> p <> p' && not (link_blocked p p')) (portails_joueur (moi ()))) in
-  (*print_string "abc";*)
   let connectables = Array.of_list cn in
   let n = Array.length connectables in
-  (*print_int n;*)
-  let best_score = ref 0 in
-  let best_config = Array.make n false in
-  let best_nactive = ref 0 in
-  let current_config = Array.make n false in
-  let nactive = ref 0 in
-  for e = 1 to (1 lsl n) - 1 do
-    let u = ref 0 in
-    (*print_int !u; print_string " "; print_int !nactive; print_int e; print_newline ();*)
-    while current_config.(!u) do
-      current_config.(!u) <- false; incr u
-    done;
-    current_config.(!u) <- true;
-    nactive := !nactive + 1 - !u;
-    if (!nactive <= build_links) then begin
-      (* Check configuration *)
-      let total_value = ref 0 in
-      for i = 0 to n - 1 do
-        if current_config.(i) then
-          for j = i + 1 to n - 1 do
-            if current_config.(j) then begin
-              let p1, p2 = connectables.(i), connectables.(j) in
-              if intersection_segments p p1 p p2 then
-                total_value := min_int (* Incorrect configuration *)
-              ;
-              if lien_existe p1 p2 then
-                total_value := !total_value + score_triangle p p1 p2
-              ;
-            end
-          done
+  if n >= 10 then begin
+    Array.iter (fun pp -> ignore (make_link p)) connectables
+  end
+  else
+  begin
+    let best_score = ref 0 in
+    let best_config = Array.make n false in
+    let best_nactive = ref 0 in
+    let current_config = Array.make n false in
+    let nactive = ref 0 in
+    for e = 1 to (1 lsl n) - 1 do
+      let u = ref 0 in
+      while current_config.(!u) do
+        current_config.(!u) <- false; incr u
       done;
-      if (!total_value > !best_score) || (!total_value = !best_score && !nactive > !best_nactive) then begin
-        best_score := !total_value;
-        for i = 0 to n - 1 do best_config.(i) <- current_config.(i) done;
-        best_nactive := !nactive
+      current_config.(!u) <- true;
+      nactive := !nactive + 1 - !u;
+      if (!nactive <= build_links) then begin
+      (* Check configuration *)
+        let total_value = ref 0 in
+        for i = 0 to n - 1 do
+          if current_config.(i) then
+            for j = i + 1 to n - 1 do
+              if current_config.(j) then begin
+                let p1, p2 = connectables.(i), connectables.(j) in
+                if intersection_segments p p1 p p2 then
+                  total_value := min_int (* Incorrect configuration *)
+                ;
+                if lien_existe p1 p2 then
+                  total_value := !total_value + score_triangle p p1 p2
+                ;
+              end
+            done
+        done;
+        if (!total_value > !best_score) || (!total_value = !best_score && !nactive > !best_nactive) then begin
+          best_score := !total_value;
+          for i = 0 to n - 1 do best_config.(i) <- current_config.(i) done;
+          best_nactive := !nactive
+        end
       end
-    end
-  done;
-  (*print_int (Array.length connectables); print_int (Array.length best_config);*)
-  Array.iteri (fun i b -> if b then ignore (make_link connectables.(i))) best_config
+    done;
+    Array.iteri (fun i b -> if b then ignore (make_link connectables.(i))) best_config
+  end
 ;;
 let make_links () =
   if portail_joueur (position_agent (moi ())) = moi () then
@@ -515,6 +532,7 @@ let make_links = logged make_links "make_links";;
 
 (*let shield_values = [|10; 50; 200; 400; 400; 400; max_int|];;*)
 let shield_values = [|10; 50; 150; 1000; 2000; 4000; max_int|];;
+(* Place shields *)
 let _make_shields () =
   let p = position_agent (moi ()) in
   let value = valeur_portail_now p + valeur_portail_build p (adversaire ()) + points_capture in
@@ -541,17 +559,13 @@ let make_shields () =
     _make_shields ()
 ;;
 
-let should_take p =
-(*(valeur_portail_adv p) >= 10 || (valeur_portail_me p) >= 50*)
-  true
-;;
-
+(* How much the score of a player increases *)
 let score_tour player =
   List.fold_left (+) 0 (List.map score_champ
       (List.filter (fun ch -> ch.joueur_c = player) (Array.to_list (liste_champs ()))))
 ;;
 
-let captures = ref [];;
+
 let objective = ref None;;
 let rec step no_repeat_index =
   let mypos = position_agent (moi ()) in
@@ -564,27 +578,24 @@ let rec step no_repeat_index =
   if (no_repeat_index > 0) && (Some (position_agent (moi ())) = !objective) then (* Assume we are trying to neutralize a 6-shield player *)
     objective := None;
   if not ((!objective <> None) && (points_deplacement () = 0 || points_action () < cout_lien)) then begin
-  (*if !objective = None then begin*)
     let portails_pas_a_moi =
       (List.filter (fun pos -> portail_joueur pos <> moi ())
          (Array.to_list (liste_portails ()))) in
     if portails_pas_a_moi = [] then () else begin
       let closest = max_nth_list_key no_repeat_index portails_pas_a_moi valeur_portail2 in
       let v = valeur_portail2 closest in
-    (*afficher_position closest; print_int v;*)
       match !objective with
         None -> objective := Some closest
       | Some p -> if (valeur_portail2 p) * 2 < v then
           objective := Some closest
     end
-  (*end*);
+    ;
     match !objective with
       None -> ()
     | Some p -> (
-    (*move_towards p;*)
       let chemin = vers p in
       List.iter (fun pp ->
-      (*afficher_position pp; *)move_towards pp; ignore (neutral ()); ignore (capture ()); make_links (); make_shields ()) chemin; 
+        move_towards pp; ignore (neutral ()); ignore (capture ()); make_links (); make_shields ()) chemin; 
       let player = portail_joueur (position_agent (moi ())) in
       if (player <> adversaire () && player <> (-1)) then begin
         if (points_deplacement ()) > 0 then step no_repeat_index
@@ -598,11 +609,14 @@ let rec step no_repeat_index =
           _ -> ()
       end)
   end
+;;
+(* Old code: try to haunt ennemy *)
+(*
 and haunt () =
       (*captures := !captures @ (Array.to_list (hist_portails_captures ()));*)
       (*if score (moi ()) <= score (adversaire ()) || (score_tour (moi ()) < (score_tour (adversaire ()))) then*)
       step 0;
-  (*begin
+  begin
   try
     while (!captures <> []) && ((points_action () >= cout_turbo) || (points_deplacement () > 0)) do
       let p = List.hd !captures in
@@ -628,12 +642,12 @@ and haunt () =
   end
   ;
   if (!captures = []) then (* back to normal way *)
-    step ()*)
+    step ()
     
 (*move_towards (position_agent (adversaire ()))*)
-;;
+;;*)
 
-
+(* Code of first step if we are first player *)
 let step1 () =
   let pp = position_agent (moi ()) in
   let portails = Array.to_list (liste_portails ()) in
@@ -652,6 +666,7 @@ let step1 () =
   move_towards pp
 ;;
 
+(* Hash of a situation *)
 let magic1 = (1 lsl 31) - 1;;
 let magic2 = 1000003;;
 let t4 = taille_terrain * taille_terrain * taille_terrain * taille_terrain;;
@@ -666,6 +681,7 @@ let hash_situation () =
   List.fold_left (fun u v -> (magic2 * u + v) mod magic1) 0 (a1 :: a2 :: (List.sort compare l))
 ;;
 
+(* Detect loops *)
 let positions_seen = ref [];;
 let newturn_detect_loop () =
   let hs = hash_situation () in
@@ -682,8 +698,11 @@ let newturn_detect_loop () =
     let adv_rem_tours = nb_tours - tour_actuel () - (if moi () = 2 then 1 else 0) in
     let score_end_adv_predicted_max = new_score_adv +
       score_adv_increase * ((adv_rem_tours + nb_tours_cycle - 1) / nb_tours_cycle) in
-    print_string "Repeat detected: turn "; print_int tour; print_string " to turn "; print_int (tour_actuel ()); print_newline (); print_string "My score increase: "; print_int score_me_increase; print_newline (); print_string "Adv score increase: "; print_int score_adv_increase; print_newline ();
-     print_string "Min score predicted for me: "; print_int score_end_me_predicted_min; print_newline (); print_string "Max score predicted for adv: "; print_int score_end_adv_predicted_max; print_newline ();
+    print_string "Repeat detected: turn "; print_int tour; print_string " to turn "; print_int (tour_actuel ()); print_newline ();
+    print_string "My score increases: "; print_int score_me_increase; print_newline ();
+    print_string "Adv score increases: "; print_int score_adv_increase; print_newline ();
+    print_string "Min score predicted for me: "; print_int score_end_me_predicted_min; print_newline ();
+    print_string "Max score predicted for adv: "; print_int score_end_adv_predicted_max; print_newline ();
     if score_end_me_predicted_min >= score_end_adv_predicted_max then begin
       positions_seen := (hs, (tour_actuel (), new_score_me, new_score_adv, num_tries)) :: nl;
       num_tries
@@ -707,16 +726,11 @@ let jouer_tour () =  (* Pose ton code ici *)
   update_blocking_links_newturn ();
   clear_caches ();
   let ll = newturn_detect_loop () in
-  (*print_string "abc"; print_int (moi ()); print_int (tour_actuel ());*)
   (if moi () = 1 && tour_actuel () = 1 then
     step1 ()
   else
-  (*haunt ();*)
       step ll
   );
-(*  (*print_int 0;
-    step ();*)
-    haunt ();*)
   flush stderr; flush stdout;; (* Pour que vos sorties s'affichent *)
 
 (*
