@@ -481,7 +481,7 @@ let _make_links () =
   let connectables = Array.of_list cn in
   let n = Array.length connectables in
   if n >= 10 then begin
-    Array.iter (fun pp -> ignore (make_link p)) connectables
+    Array.iter (fun pp -> ignore (make_link pp)) connectables
   end
   else
   begin
