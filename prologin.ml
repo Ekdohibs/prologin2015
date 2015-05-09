@@ -90,6 +90,9 @@ let pop_tas tas ( < ) =
 let is_empty tas = tas.size = 0;;
 *)
 
+let mypos () = position_agent (moi ());;
+let advpos () = position_agent (adversaire ());;
+
 let index_pos (x, y) =
   (*assert (0 <= x && x < taille_terrain && 0 <= y && y < taille_terrain);*)
   x * taille_terrain + y
@@ -173,13 +176,14 @@ let is_portail_not_me p =
 
 let move_towards (x, y) =
   let d = points_deplacement () in
-  let (xx, yy) = position_agent (moi ()) in
+  let (xx, yy) = mypos () in
   let adx = min (abs (x - xx)) d in
   let ady = min (abs (y - yy)) (d - adx) in
   let dx = if xx < x then adx else -adx in
   let dy = if yy < y then ady else -ady in
   ignore (deplacer (xx + dx, yy + dy))
-  ;;
+;;
+
 (*let move_towards p =
   ignore (deplacer (List.hd (vers (position_agent (moi ())) p)))
   ;;*)
@@ -246,53 +250,35 @@ let update_blocking_links_newturn () =
 (*;print_string "ubln end"*)
 ;;
 let update_blocking_links_newturn = logged update_blocking_links_newturn "ubln";;
-let newlink p1 p2 =
-  (*print_string "newlink";*)
-  let u, v = portails_id.(index_pos p1), portails_id.(index_pos p2) in
-  !are_linked.(u).(v) <- true; !are_linked.(v).(u) <- true;
-  link_add p1 p2
-;;
-let dellink p1 p2 =
-  (*print_string "dellink";*)
-  let u, v = portails_id.(index_pos p1), portails_id.(index_pos p2) in
-  !are_linked.(u).(v) <- false; !are_linked.(v).(u) <- false;
-  link_remove p1 p2
-;;
-let neutral () =
-  let p = position_agent (moi ()) in
-  let liens = liens_incidents_portail p in
-  match neutraliser () with
-    Ok -> Array.iter (fun lien -> dellink lien.extr1 lien.extr2) liens; Ok
-  | r -> r
-;;
-let neutraliser = "This should not be called anymore; use neutral instead";;
-let make_link p =
-  let p1 = position_agent (moi ()) in
-  match (lier p) with
-    Ok -> newlink p p1; Ok
-  | r -> r
-;;
-let lier = "This should not be called anymore; use make_link instead";;
-
-let err f x =
-  match (f x) with
-    Ok -> ()
-  | _ -> failwith ""
-;;
-
-let neutraliserf = err neutral;;
-let capturerf = err capturer;;
-let lierf = err make_link;;
-
 
 let portails_joueur joueur =
   List.filter (fun pos -> portail_joueur pos = joueur) (Array.to_list (liste_portails ()))
 ;;
 
 let score_champ ch = score_triangle ch.som1 ch.som2 ch.som3;;
-let valeur_portail_now p =
+let _valeur_portail_now p =
   List.fold_left (+) 0 (List.map score_champ (Array.to_list (champs_incidents_portail p)))
 ;;
+let vpn_cache = Array.make (taille_terrain * taille_terrain) None;;
+let vpn_cache_clear = ref true;;
+let valeur_portail_now p =
+  match vpn_cache.(index_pos p) with
+    None -> let r = _valeur_portail_now p in
+            vpn_cache.(index_pos p) <- Some r;
+            vpn_cache_clear := false;
+            r
+  | Some r -> r
+;;
+let valeur_portail_now = _valeur_portail_now;;
+let clear_vpn_cache () =
+  if not (!vpn_cache_clear) then begin
+    for i = 0 to (Array.length vpn_cache) - 1 do
+      vpn_cache.(i) <- None
+    done;
+    vpn_cache_clear := true
+  end
+;;
+
 let rec list_product l1 l2 =
   match l1 with
     [] -> []
@@ -309,7 +295,7 @@ let link_blocked p1 p2 =
   let u, v = portails_id.(index_pos p1), portails_id.(index_pos p2) in
   !nb_blocking_links.(u).(v) > 0
 ;;
-let valeur_portail_build p player =
+let _valeur_portail_build p player =
   if portail_joueur p = (-2) then
     0
   else if Array.length (case_champs p) > 0 then
@@ -330,6 +316,30 @@ let valeur_portail_build p player =
           (Array.to_list (liste_liens ())))) + points_capture
   end
 ;;
+let vpb_cache = Array.make (2 * taille_terrain * taille_terrain) None;;
+let vpb_cache_clear = ref true;;
+let valeur_portail_build p player =
+  match vpb_cache.(player - 1 + 2 * (index_pos p)) with
+    None -> let r = _valeur_portail_build p player in
+            vpb_cache.(player - 1 + 2 * (index_pos p)) <- Some r;
+            vpb_cache_clear := false;
+            r
+  | Some r -> r
+;;
+let valeur_portail_build = _valeur_portail_build;;
+let clear_vpb_cache () =
+  if not (!vpb_cache_clear) then begin
+    for i = 0 to (Array.length vpb_cache) - 1 do
+      vpb_cache.(i) <- None
+    done;
+    vpb_cache_clear := true
+  end
+;;
+let clear_caches () =
+  clear_vpn_cache ();
+  clear_vpb_cache ()
+;;
+
 let valeur_portail_build = logged valeur_portail_build "vpb";;
 
 let valeur_portail p =
@@ -356,6 +366,51 @@ let valeur_portail_any p =
   else
     (valeur_portail_now p) + (valeur_portail_build p (moi ()))
 ;;
+
+
+let newlink p1 p2 =
+  (*print_string "newlink";*)
+  let u, v = portails_id.(index_pos p1), portails_id.(index_pos p2) in
+  !are_linked.(u).(v) <- true; !are_linked.(v).(u) <- true;
+  link_add p1 p2
+;;
+let dellink p1 p2 =
+  (*print_string "dellink";*)
+  let u, v = portails_id.(index_pos p1), portails_id.(index_pos p2) in
+  !are_linked.(u).(v) <- false; !are_linked.(v).(u) <- false;
+  link_remove p1 p2
+;;
+let neutral () =
+  let p = position_agent (moi ()) in
+  let liens = liens_incidents_portail p in
+  match neutraliser () with
+    Ok -> Array.iter (fun lien -> dellink lien.extr1 lien.extr2) liens; clear_caches (); Ok
+  | r -> r
+;;
+let neutraliser = "This should not be called anymore; use neutral instead";;
+let make_link p =
+  let p1 = position_agent (moi ()) in
+  match (lier p) with
+    Ok -> newlink p p1; clear_caches (); Ok
+  | r -> r
+;;
+let lier = "This should not be called anymore; use make_link instead";;
+let capture () =
+  match capturer () with
+    Ok -> clear_caches (); Ok
+  | r -> r
+;;
+let capturer = "This should not be called anymore; use capture instead";;
+
+let err f x =
+  match (f x) with
+    Ok -> ()
+  | _ -> failwith ""
+;;
+
+let neutraliserf = err neutral;;
+let capturerf = err capture;;
+let lierf = err make_link;;
 
 let vers p =
   let cp = position_agent (moi ()) in
@@ -401,19 +456,23 @@ let valeur_portail2 p =
     -40 * n - 20 * da + (1 * (valeur_portail_build p (moi ())) + (valeur_portail_now p))
 ;;
 
-let make_links () =
+let _make_links () =
   let build_links = (points_action ()) / cout_lien in
   let p = position_agent (moi ()) in
+  (*print_int (portail_joueur p);*)
   let cn = (List.filter (fun p' -> p <> p' && not (link_blocked p p')) (portails_joueur (moi ()))) in
+  (*print_string "abc";*)
   let connectables = Array.of_list cn in
   let n = Array.length connectables in
+  (*print_int n;*)
   let best_score = ref 0 in
   let best_config = Array.make n false in
   let best_nactive = ref 0 in
   let current_config = Array.make n false in
   let nactive = ref 0 in
-  for _ = 0 to (1 lsl n) - 1 do
+  for e = 1 to (1 lsl n) - 1 do
     let u = ref 0 in
+    (*print_int !u; print_string " "; print_int !nactive; print_int e; print_newline ();*)
     while current_config.(!u) do
       current_config.(!u) <- false; incr u
     done;
@@ -436,18 +495,24 @@ let make_links () =
             end
           done
       done;
-      if (!total_value > !best_score) || (!total_value = !best_score && !nactive < !best_nactive) then begin
+      if (!total_value > !best_score) || (!total_value = !best_score && !nactive > !best_nactive) then begin
         best_score := !total_value;
         for i = 0 to n - 1 do best_config.(i) <- current_config.(i) done;
         best_nactive := !nactive
       end
     end
   done;
+  (*print_int (Array.length connectables); print_int (Array.length best_config);*)
   Array.iteri (fun i b -> if b then ignore (make_link connectables.(i))) best_config
 ;;
+let make_links () =
+  if portail_joueur (position_agent (moi ())) = moi () then
+    _make_links ()
+;;
+let make_links = logged make_links "make_links";;
 
 let shield_values = [|10; 50; 150; 1000; 2000; 4000; max_int|];;
-let make_shields () =
+let _make_shields () =
   let p = position_agent (moi ()) in
   let value = valeur_portail_now p + valeur_portail_build p (adversaire ()) in
   let i = ref 0 in
@@ -468,6 +533,10 @@ let make_shields () =
       ignore (ajouter_bouclier ())
   end
 ;;
+let make_shields () =
+  if portail_joueur (position_agent (moi ())) = moi () then
+    _make_shields ()
+;;
 
 let should_take p =
 (*(valeur_portail_adv p) >= 10 || (valeur_portail_me p) >= 50*)
@@ -482,8 +551,11 @@ let score_tour player =
 let captures = ref [];;
 let objective = ref None;;
 let rec step no_repeat_index =
-  make_links ();
-  make_shields ();
+  let mypos = position_agent (moi ()) in
+  if portail_joueur mypos = moi () then begin
+    make_links ();
+    make_shields ()
+  end;
   if (points_deplacement () > 0) && (points_action () >= cout_lien) then
     objective := None; 
   if (no_repeat_index > 0) && (Some (position_agent (moi ())) = !objective) then (* Assume we are trying to neutralize a 6-shield player *)
@@ -509,7 +581,7 @@ let rec step no_repeat_index =
     (*move_towards p;*)
       let chemin = vers p in
       List.iter (fun pp ->
-      (*afficher_position pp; *)move_towards pp; ignore (neutral ()); ignore (capturer ()); make_links (); make_shields ()) chemin; 
+      (*afficher_position pp; *)move_towards pp; ignore (neutral ()); ignore (capture ()); make_links (); make_shields ()) chemin; 
       let player = portail_joueur (position_agent (moi ())) in
       if (player <> adversaire () && player <> (-1)) then begin
         if (points_deplacement ()) > 0 then step no_repeat_index
@@ -569,7 +641,7 @@ let step1 () =
   done;
   if (points_deplacement ()) >= 2 * d then begin
     move_towards closest;
-    ignore (capturer ());
+    ignore (capture ());
     for i = 1 to 6 do
       ignore (ajouter_bouclier ())
     done
@@ -630,6 +702,7 @@ let newturn_detect_loop () =
 let jouer_tour () =  (* Pose ton code ici *)
   print_string "Turn "; print_int (tour_actuel ());
   update_blocking_links_newturn ();
+  clear_caches ();
   let ll = newturn_detect_loop () in
   (*print_string "abc"; print_int (moi ()); print_int (tour_actuel ());*)
   (if moi () = 1 && tour_actuel () = 1 then
