@@ -21,6 +21,24 @@ let max_list_key l key =
   min_list l (fun x y -> key x > key y)
 ;;
 
+
+let max_nth_list_key index l key =
+(*min_list l (fun x y -> key x > key y)*)
+  List.nth (List.sort (fun x y -> compare (key y) (key x)) l) index
+;;
+
+let logged f name =
+  (fun x -> (*let t = Unix.time () in*)
+    print_string name; print_newline ();
+            let r = f x in
+            (*        let tt = Unix.time () in*)
+            print_string name; print_string "end"; print_newline ();
+            (*            print_string name; print_string ": "; print_float (tt -. t); print_newline ();*)
+            r
+  )
+;;
+let logged f name = f;; (* disable logging *)
+
 (*
 let max_taille_tas = 10000;;
 type 'a tas = {mutable size : int; data : 'a array};;
@@ -73,6 +91,7 @@ let is_empty tas = tas.size = 0;;
 *)
 
 let index_pos (x, y) =
+  (*assert (0 <= x && x < taille_terrain && 0 <= y && y < taille_terrain);*)
   x * taille_terrain + y
 ;;
 
@@ -189,55 +208,73 @@ let move_towards (x, y) =
 **
 **
 *)
-let portails_pos = liste_portails ();;
-let nb_portails = Array.length portails_pos;;
+let portails_pos = ref [||];;
+let nb_portails = ref 0;;
 let portails_id = Array.make (taille_terrain * taille_terrain) (-1);;
-Array.iteri (fun i p -> portails_id.(index_pos p) <- i);;
-let nb_blocking_links = Array.init nb_portails (fun i ->
-  Array.make (Array.length portails_pos) 0);;
+let are_linked = ref [||];;
+let nb_blocking_links = ref [||];;
+(*
+** Fonction appelée au début de la partie.
+*)
+let partie_init () =  (* Pose ton code ici *)
+  portails_pos := liste_portails ();
+  (*Array.iter afficher_position !portails_pos;*)
+  nb_portails := Array.length !portails_pos; 
+  Array.iteri (fun i p -> portails_id.(index_pos p) <- i) !portails_pos;
+  are_linked := Array.init !nb_portails (fun i ->
+    Array.make !nb_portails false);
+  nb_blocking_links := Array.init !nb_portails (fun i ->
+    Array.make !nb_portails 0);
+
+  flush stderr; flush stdout;; (* Pour que vos sorties s'affichent *)
+
 let link_add p1 p2 =
   Array.iteri (fun i p ->
     Array.iteri (fun j p' ->
       if intersection_segments p1 p2 p p' then
-        nb_blocking_links.(i).(j) <- nb_blocking_links.(i).(j) + 1
-    ) portails_pos
-  ) portails_pos
+        !nb_blocking_links.(i).(j) <- !nb_blocking_links.(i).(j) + 1
+    ) !portails_pos
+  ) !portails_pos
 ;;
 let link_remove p1 p2 =
   Array.iteri (fun i p ->
     Array.iteri (fun j p' ->
       if intersection_segments p1 p2 p p' then
-        nb_blocking_links.(i).(j) <- nb_blocking_links.(i).(j) - 1
-    ) portails_pos
-  ) portails_pos
+        !nb_blocking_links.(i).(j) <- !nb_blocking_links.(i).(j) - 1
+    ) !portails_pos
+  ) !portails_pos
 ;;
-let are_linked = Array.init nb_portails (fun i ->
-  Array.make nb_portails false);;
 let update_blocking_links_newturn () =
+  (*print_string "ubln";*)
   let liens = liste_liens () in
-  let ll = Array.init nb_portails
-    (fun i -> Array.make nb_portails false) in
+  let ll = Array.init !nb_portails
+    (fun i -> Array.make !nb_portails false) in
   Array.iter (fun link ->
     let u, v = portails_id.(index_pos link.extr1), portails_id.(index_pos link.extr2) in
+    (*print_int u; print_string " "; print_int v; print_newline ();*)
     ll.(u).(v) <- true; ll.(v).(u) <- true) liens;
-  for i = 0 to nb_portails - 1 do
-    for j = 0 to nb_portails - 1 do
-      if i <= j && are_linked.(i).(j) <> ll.(i).(j) then begin
-        if ll.(i).(j) then link_add portails_pos.(i) portails_pos.(j)
-        else link_remove portails_pos.(i) portails_pos.(j)
+  for i = 0 to !nb_portails - 1 do
+    for j = 0 to !nb_portails - 1 do
+      if i <= j && !are_linked.(i).(j) <> ll.(i).(j) then begin
+        if ll.(i).(j) then link_add !portails_pos.(i) !portails_pos.(j)
+        else link_remove !portails_pos.(i) !portails_pos.(j)
       end;
-      are_linked.(i).(j) <- ll.(i).(j)
+      !are_linked.(i).(j) <- ll.(i).(j)
     done
   done
+(*;print_string "ubln end"*)
 ;;
+let update_blocking_links_newturn = logged update_blocking_links_newturn "ubln";;
 let newlink p1 p2 =
+  (*print_string "newlink";*)
   let u, v = portails_id.(index_pos p1), portails_id.(index_pos p2) in
-  are_linked.(u).(v) <- true; are_linked.(v).(u) <- true;
+  !are_linked.(u).(v) <- true; !are_linked.(v).(u) <- true;
   link_add p1 p2
 ;;
 let dellink p1 p2 =
+  (*print_string "dellink";*)
   let u, v = portails_id.(index_pos p1), portails_id.(index_pos p2) in
-  are_linked.(u).(v) <- false; are_linked.(v).(u) <- false;
+  !are_linked.(u).(v) <- false; !are_linked.(v).(u) <- false;
   link_remove p1 p2
 ;;
 let neutral () =
@@ -289,10 +326,12 @@ let make_link_cache p =
   let link_blocked p2 = link_cache.(index_pos p2);;*)
 let link_blocked p1 p2 =
   let u, v = portails_id.(index_pos p1), portails_id.(index_pos p2) in
-  nb_blocking_links.(u).(v) > 0
+  !nb_blocking_links.(u).(v) > 0
 ;;
 let valeur_portail_build p player =
-  if Array.length (case_champs p) > 0 then
+  if portail_joueur p = (-2) then
+    0
+  else if Array.length (case_champs p) > 0 then
     points_capture
   else begin
     (*make_link_cache p;*)
@@ -310,10 +349,13 @@ let valeur_portail_build p player =
           (Array.to_list (liste_liens ())))) + points_capture
   end
 ;;
+let valeur_portail_build = logged valeur_portail_build "vpb";;
 
 let valeur_portail p =
   let u = portail_joueur p in
-  if u = (-1) then
+  if u = (-2) then
+    0
+  else if u = (-1) then
     valeur_portail_build p (moi ())
   else if u = moi () then
     0
@@ -333,7 +375,9 @@ let valeur_portail2 p =
   let nn = float_of_int n in
   let da = distance p (position_agent (adversaire ())) in
   let tours_restants = nb_tours - tour_actuel () - n in
-  if u = (-1) then
+  if u = (-2) then
+    min_int
+  else if u = (-1) then
   (*(float_of_int (valeur_portail_me p)) /. ((nn +. 1.) *. (nn +. 1.))*)
     -40 * n - 20 * da + (1 * (valeur_portail_build p (moi ())))
   else if u = moi () then
@@ -382,49 +426,52 @@ let score_tour player =
 
 let captures = ref [];;
 let objective = ref None;;
-let rec step () =
+let rec step no_repeat_index =
   make_links ();
   make_shields ();
   if (points_deplacement () > 0) && (points_action () >= cout_lien) then
     objective := None;
-    (*if !objective = None then begin*)
-  let portails_pas_a_moi =
-    (List.filter (fun pos -> portail_joueur pos <> moi ())
-       (Array.to_list (liste_portails ()))) in
-  if portails_pas_a_moi = [] then () else begin
-    let closest = max_list_key portails_pas_a_moi valeur_portail2 in
-    print_string "Turn "; print_int (tour_actuel ());
-    let v = valeur_portail2 closest in
+  if (no_repeat_index > 0) && (Some (position_agent (moi ())) = !objective) then (* Assume we are trying to neutralize a 6-shield player *)
+    objective := None;
+  if not ((!objective <> None) && (points_deplacement () = 0 || points_action () < cout_lien)) then begin
+  (*if !objective = None then begin*)
+    let portails_pas_a_moi =
+      (List.filter (fun pos -> portail_joueur pos <> moi ())
+         (Array.to_list (liste_portails ()))) in
+    if portails_pas_a_moi = [] then () else begin
+      let closest = max_nth_list_key no_repeat_index portails_pas_a_moi valeur_portail2 in
+      let v = valeur_portail2 closest in
     (*afficher_position closest; print_int v;*)
-    match !objective with
-      None -> objective := Some closest
-    | Some p -> if (valeur_portail2 p) * 2 < v then
-        objective := Some closest
-  end
+      match !objective with
+        None -> objective := Some closest
+      | Some p -> if (valeur_portail2 p) * 2 < v then
+          objective := Some closest
+    end
   (*end*);
-  match !objective with
-    None -> ()
-  | Some p -> (
+    match !objective with
+      None -> ()
+    | Some p -> (
     (*move_towards p;*)
-    let chemin = vers p in
-    List.iter (fun pp ->
+      let chemin = vers p in
+      List.iter (fun pp ->
       (*afficher_position pp; *)move_towards pp; ignore (neutral ()); ignore (capturer ()); make_links (); make_shields ()) chemin; 
-    let player = portail_joueur (position_agent (moi ())) in
-    if (player <> adversaire () && player <> (-1)) then begin
-      if (points_deplacement ()) > 0 then step ()
-      else if (utiliser_turbo ()) = Ok then step ()
-    end else begin
-      try
-        if (player = adversaire ()) then begin neutraliserf () end;
-        capturerf ();
-        step ()
-      with
-        _ -> ()
-    end)
+      let player = portail_joueur (position_agent (moi ())) in
+      if (player <> adversaire () && player <> (-1)) then begin
+        if (points_deplacement ()) > 0 then step no_repeat_index
+        else if (utiliser_turbo ()) = Ok then step no_repeat_index
+      end else begin
+        try
+          if (player = adversaire ()) then begin neutraliserf () end;
+          capturerf ();
+          step no_repeat_index
+        with
+          _ -> ()
+      end)
+  end
 and haunt () =
       (*captures := !captures @ (Array.to_list (hist_portails_captures ()));*)
       (*if score (moi ()) <= score (adversaire ()) || (score_tour (moi ()) < (score_tour (adversaire ()))) then*)
-      step ();
+      step 0;
   (*begin
   try
     while (!captures <> []) && ((points_action () >= cout_turbo) || (points_deplacement () > 0)) do
@@ -456,11 +503,6 @@ and haunt () =
 (*move_towards (position_agent (adversaire ()))*)
 ;;
 
-(*
-** Fonction appelée au début de la partie.
-*)
-let partie_init () =  (* Pose ton code ici *)
-  flush stderr; flush stdout;; (* Pour que vos sorties s'affichent *)
 
 let step1 () =
   let pp = position_agent (moi ()) in
@@ -480,15 +522,67 @@ let step1 () =
   move_towards pp
 ;;
 
+let magic1 = (1 lsl 31) - 1;;
+let magic2 = 1000003;;
+let t4 = taille_terrain * taille_terrain * taille_terrain * taille_terrain;;
+let link_id link =
+  let p1, p2 = (min link.extr1 link.extr2), (max link.extr1 link.extr2) in
+  link.joueur_l + 2 * (index_pos p1 + t4 * (index_pos p2))
+;;
+let hash_situation () =
+  let l = List.map link_id (Array.to_list (liste_liens ())) in
+  let a1 = index_pos (position_agent (moi ())) in
+  let a2 = index_pos (position_agent (adversaire ())) in
+  List.fold_left (fun u v -> (magic2 * u + v) mod magic1) 0 (a1 :: a2 :: (List.sort compare l))
+;;
+
+let positions_seen = ref [];;
+let newturn_detect_loop () =
+  let hs = hash_situation () in
+  try
+    let (tour, score_me, score_adv, num_tries) = List.assoc hs !positions_seen in
+    let nl = List.remove_assoc hs !positions_seen in
+    let nb_tours_cycle = tour_actuel () - tour in
+    let new_score_me = score (moi ()) in
+    let new_score_adv = score (adversaire ()) in
+    let score_me_increase = new_score_me - score_me in
+    let score_adv_increase = new_score_adv - score_adv in
+    let score_end_me_predicted_min = new_score_me +
+      score_me_increase * ((nb_tours - tour_actuel ()) / nb_tours_cycle) in
+    let adv_rem_tours = nb_tours - tour_actuel () - (if moi () = 2 then 1 else 0) in
+    let score_end_adv_predicted_max = new_score_adv +
+      score_adv_increase * ((adv_rem_tours + nb_tours_cycle - 1) / nb_tours_cycle) in
+    print_string "Repeat detected: turn "; print_int tour; print_string " to turn "; print_int (tour_actuel ()); print_newline (); print_string "My score increase: "; print_int score_me_increase; print_newline (); print_string "Adv score increase: "; print_int score_adv_increase; print_newline ();
+     print_string "Min score predicted for me: "; print_int score_end_me_predicted_min; print_newline (); print_string "Max score predicted for adv: "; print_int score_end_adv_predicted_max; print_newline ();
+    if score_end_me_predicted_min >= score_end_adv_predicted_max then begin
+      positions_seen := (hs, (tour_actuel (), new_score_me, new_score_adv, num_tries)) :: nl;
+      num_tries
+    end else begin
+      positions_seen := (hs, (tour_actuel (), new_score_me, new_score_adv, num_tries + 1)) :: nl;
+      num_tries + 1
+    end
+  with
+    Not_found -> begin
+      positions_seen :=
+        (hs, (tour_actuel (), score (moi ()), score (adversaire ()), 0)) :: !positions_seen;
+      0
+    end
+;;
+
 (*
 ** Fonction appelée à chaque tour.
 *)
 let jouer_tour () =  (* Pose ton code ici *)
+  print_string "Turn "; print_int (tour_actuel ());
+  update_blocking_links_newturn ();
+  let ll = newturn_detect_loop () in
   (*print_string "abc"; print_int (moi ()); print_int (tour_actuel ());*)
   (if moi () = 1 && tour_actuel () = 1 then
     step1 ()
   else
-    haunt ());
+  (*haunt ();*)
+      step ll
+  );
 (*  (*print_int 0;
     step ();*)
     haunt ();*)
