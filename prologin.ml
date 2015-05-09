@@ -450,12 +450,12 @@ let valeur_portail2 p =
     min_int
   else if u = (-1) then
   (*(float_of_int (valeur_portail_me p)) /. ((nn +. 1.) *. (nn +. 1.))*)
-    -10 * n - 10 * da + (valeur_portail_build p (moi ())) + points_capture
+    -15 * n - 10 * da + (valeur_portail_build p (moi ())) + points_capture
   else if u = moi () then
-    -10 * n - 10 * da + (valeur_portail_build p (moi ())) + points_capture
+    -15 * n - 10 * da + (valeur_portail_build p (moi ())) + points_capture
   else
 (*(float_of_int ((valeur_portail_me p) + (valeur_portail_adv p))) /. ((nn +. 1.) *. (nn +. 1.))*)
-    -10 * n - 10 * da + (valeur_portail_build p (moi ())) + (valeur_portail_now p) + points_capture
+    -15 * n - 10 * da + (valeur_portail_build p (moi ())) + (valeur_portail_now p) + points_capture
 ;;
 
 let _make_links () =
