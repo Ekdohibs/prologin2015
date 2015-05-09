@@ -438,7 +438,9 @@ let nbtours dist = (dist + points_deplacement () - 1) / nb_points_deplacement;;
 let valeur_portail2 p =
   let u = portail_joueur p in
   let d = distance p (position_agent (moi ())) in
-  let n = d + 3 * (nbtours d) in
+  (*let n = d + 3 * (nbtours d) in*)
+  (*let n = 8 * (nbtours d) in*)
+  let n = d + (nbtours d) in
   (*let n = nbtours d in*)
   (*let n = d in*)
   let nn = float_of_int n in
@@ -448,12 +450,12 @@ let valeur_portail2 p =
     min_int
   else if u = (-1) then
   (*(float_of_int (valeur_portail_me p)) /. ((nn +. 1.) *. (nn +. 1.))*)
-    -40 * n - 20 * da + (valeur_portail_build p (moi ())) + points_capture
+    -10 * n - 10 * da + (valeur_portail_build p (moi ())) + points_capture
   else if u = moi () then
-    -40 * n - 20 * da + (valeur_portail_build p (moi ())) + points_capture
+    -10 * n - 10 * da + (valeur_portail_build p (moi ())) + points_capture
   else
 (*(float_of_int ((valeur_portail_me p) + (valeur_portail_adv p))) /. ((nn +. 1.) *. (nn +. 1.))*)
-    -40 * n - 20 * da + (valeur_portail_build p (moi ())) + (valeur_portail_now p) + points_capture
+    -10 * n - 10 * da + (valeur_portail_build p (moi ())) + (valeur_portail_now p) + points_capture
 ;;
 
 let _make_links () =
