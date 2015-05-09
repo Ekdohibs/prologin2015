@@ -165,8 +165,8 @@ let vers p =
           (List.map (fun pp -> dt.(index_pos pp))
              (List.filter (fun pp -> position_valid pp && dt.(index_pos pp) <> (-1, []))
                 [(x - 1, y); (x, y + 1); (x + 1, y); (x, y - 1)])) in
-      let (mp, v) = if is_portail_not_me (x, y) then (mm + 1, (x, y) :: u) else (mm, u) in
-      dt.(index_pos (x, y)) <- (mp, v)) ps
+      let mp = if is_portail_not_me (x, y) then mm + 1 else mm in
+      dt.(index_pos (x, y)) <- (mp, (x, y) :: u)) ps
   done;
   snd (dt.(index_pos p))
 ;;
@@ -222,10 +222,10 @@ let update_blocking_links_newturn () =
     ll.(u).(v) <- true; ll.(v).(u) <- true) liens;
   for i = 0 to nb_portails - 1 do
     for j = 0 to nb_portails - 1 do
-      if i <= j && are_linked.(i).(j) <> ll.(i).(j) then
+      if i <= j && are_linked.(i).(j) <> ll.(i).(j) then begin
         if ll.(i).(j) then link_add portails_pos.(i) portails_pos.(j)
         else link_remove portails_pos.(i) portails_pos.(j)
-      ;
+      end;
       are_linked.(i).(j) <- ll.(i).(j)
     done
   done
@@ -251,7 +251,7 @@ let neutraliser = "This should not be called anymore; use neutral instead";;
 let make_link p =
   let p1 = position_agent (moi ()) in
   match (lier p) with
-    Ok -> newline p p1; Ok
+    Ok -> newlink p p1; Ok
   | r -> r
 ;;
 let lier = "This should not be called anymore; use make_link instead";;
