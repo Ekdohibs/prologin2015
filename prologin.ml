@@ -171,25 +171,6 @@ let is_portail_not_me p =
   u = (-1) || u = adversaire ()
 ;;
 
-let vers p =
-  let cp = position_agent (moi ()) in
-  let dt = Array.make (taille_terrain * taille_terrain) (-1, []) in
-  dt.(index_pos cp) <- (0, []);
-  let d = distance p cp in
-  for i = 1 to d do
-    let ps = pos_a_dist cp i in
-    List.iter (fun (x, y) ->
-      let mm, u =
-        List.fold_left (fun (a, b) (c, d) -> if a < c then (c, d) else (a, b)) (-1, [])
-          (List.map (fun pp -> dt.(index_pos pp))
-             (List.filter (fun pp -> position_valid pp && dt.(index_pos pp) <> (-1, []))
-                [(x - 1, y); (x, y + 1); (x + 1, y); (x, y - 1)])) in
-      let mp = if is_portail_not_me (x, y) then mm + 1 else mm in
-      dt.(index_pos (x, y)) <- (mp, (x, y) :: u)) ps
-  done;
-  snd (dt.(index_pos p))
-;;
-
 let move_towards (x, y) =
   let d = points_deplacement () in
   let (xx, yy) = position_agent (moi ()) in
@@ -363,6 +344,39 @@ let valeur_portail p =
     (valeur_portail_build p (moi ())) + (valeur_portail_now p)
 ;;
 
+
+let valeur_portail_any p =
+  let u = portail_joueur p in
+  if u = (-2) then
+    0
+  else if u = (-1) then
+    (valeur_portail_build p (moi ())) + (valeur_portail_build p (adversaire ()))
+  else if u = moi () then
+    (valeur_portail_now p) + (valeur_portail_build p (adversaire ()))
+  else
+    (valeur_portail_now p) + (valeur_portail_build p (moi ()))
+;;
+
+let vers p =
+  let cp = position_agent (moi ()) in
+  let dt = Array.make (taille_terrain * taille_terrain) (-1, []) in
+  dt.(index_pos cp) <- (0, []);
+  let d = distance p cp in
+  for i = 1 to d do
+    let ps = pos_a_dist cp i in
+    List.iter (fun (x, y) ->
+      let mm, u =
+        List.fold_left (fun (a, b) (c, d) -> if a < c then (c, d) else (a, b)) (-1, [])
+          (List.map (fun pp -> dt.(index_pos pp))
+             (List.filter (fun pp -> position_valid pp && dt.(index_pos pp) <> (-1, []))
+                [(x - 1, y); (x, y + 1); (x + 1, y); (x, y - 1)])) in
+      let mp = mm + valeur_portail p in
+      dt.(index_pos (x, y)) <- (mp, (x, y) :: u)) ps
+  done;
+  snd (dt.(index_pos p))
+;;
+
+
 let nbtours dist = (dist + points_deplacement () - 1) / nb_points_deplacement;;
 
 
@@ -388,7 +402,48 @@ let valeur_portail2 p =
 ;;
 
 let make_links () =
-  List.iter (fun p -> ignore (make_link p)) (portails_joueur (moi ()))
+  let build_links = (points_action ()) / cout_lien in
+  let p = position_agent (moi ()) in
+  let cn = (List.filter (fun p' -> p <> p' && not (link_blocked p p')) (portails_joueur (moi ()))) in
+  let connectables = Array.of_list cn in
+  let n = Array.length connectables in
+  let best_score = ref 0 in
+  let best_config = Array.make n false in
+  let best_nactive = ref 0 in
+  let current_config = Array.make n false in
+  let nactive = ref 0 in
+  for _ = 0 to (1 lsl n) - 1 do
+    let u = ref 0 in
+    while current_config.(!u) do
+      current_config.(!u) <- false; incr u
+    done;
+    current_config.(!u) <- true;
+    nactive := !nactive + 1 - !u;
+    if (!nactive <= build_links) then begin
+      (* Check configuration *)
+      let total_value = ref 0 in
+      for i = 0 to n - 1 do
+        if current_config.(i) then
+          for j = i + 1 to n - 1 do
+            if current_config.(j) then begin
+              let p1, p2 = connectables.(i), connectables.(j) in
+              if intersection_segments p p1 p p2 then
+                total_value := min_int (* Incorrect configuration *)
+              ;
+              if lien_existe p1 p2 then
+                total_value := !total_value + score_triangle p p1 p2
+              ;
+            end
+          done
+      done;
+      if (!total_value > !best_score) || (!total_value = !best_score && !nactive < !best_nactive) then begin
+        best_score := !total_value;
+        for i = 0 to n - 1 do best_config.(i) <- current_config.(i) done;
+        best_nactive := !nactive
+      end
+    end
+  done;
+  Array.iteri (fun i b -> if b then ignore (make_link connectables.(i))) best_config
 ;;
 
 let shield_values = [|10; 50; 150; 1000; 2000; 4000; max_int|];;
@@ -430,7 +485,7 @@ let rec step no_repeat_index =
   make_links ();
   make_shields ();
   if (points_deplacement () > 0) && (points_action () >= cout_lien) then
-    objective := None;
+    objective := None; 
   if (no_repeat_index > 0) && (Some (position_agent (moi ())) = !objective) then (* Assume we are trying to neutralize a 6-shield player *)
     objective := None;
   if not ((!objective <> None) && (points_deplacement () = 0 || points_action () < cout_lien)) then begin
