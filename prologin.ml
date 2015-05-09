@@ -511,7 +511,8 @@ let make_links () =
 ;;
 let make_links = logged make_links "make_links";;
 
-let shield_values = [|10; 50; 200; 400; 400; 400; max_int|];;
+(*let shield_values = [|10; 50; 200; 400; 400; 400; max_int|];;*)
+let shield_values = [|10; 50; 150; 1000; 2000; 4000; max_int|];;
 let _make_shields () =
   let p = position_agent (moi ()) in
   let value = valeur_portail_now p + valeur_portail_build p (adversaire ()) + points_capture in
