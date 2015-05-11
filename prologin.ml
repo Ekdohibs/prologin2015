@@ -1,6 +1,35 @@
+(*      _           ___ ___          _  __       __
+** | | / \ |  |      |   |     |  | / \ | \ | / /  
+** |-| | | |  |      |   |     |  | | | |-/ |(  \-\
+** | | \_/ \/\/     _|_  |     \/\/ \_/ | \ | \ __/
+**
+** The basic idea is to give a value to every portal.
+** That value depends on the score that the enemy gets with
+** fields using that portal; on the score that could be obtained
+** by taking the portal and linking it to every possible one;
+** and on the distance from the current position to that portal.
+** 
+** There is then an objective system: the agent will move towards the
+** objective (passing on as many portals as possible), then take the portal
+** at that location, make as many links as possible, and finally add a few
+** shields; the objective will then be completed. When there is no more
+** objective, a new one will be selected by looking at the value of every
+** portal and going towards the one with the best value.
+**
+** Finally, there is also a detection of cycles: whenever a position is seen
+** again, a prediction for the final score of each player is made; whenever this
+** prediction is bad, the next best choice will be chosen instead when chosing a new
+** objective to escape the cycle.
+*)
+
 open Api;;
 
-(* Helpers *)
+(*      __      _   __  _   __
+** | | |   |   | \ |   | \ /
+** |-| |-  |   |_/ |-  |-/ \-\
+** | | |__ |__ |   |__ | \ __/
+*)
+
 (* Minimum of a list with a custom comparaison function *)
 let min_list l ( < ) =
   match l with
@@ -80,7 +109,7 @@ let err f x =
 
 (*       __         _    __
 ** |  | |     /\   | \  /
-** |--| |-   /--\  |_/  \__
+** |--| |-   /--\  |_/  \-\
 ** |  | |__ /    \ |    __/
 *)
 
