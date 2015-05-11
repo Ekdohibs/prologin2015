@@ -1,0 +1,10 @@
+My submission for the prologin2015 contest.
+
+To install:
+- Follow the instructions of https://bitbucket.org/prologin/stechec2 to install the prologin2015 game
+- Generate the player environment and move this folder into it
+- Type "make" to build the .so champion, and "make tar" to build the .tgz
+- You can run matches as explained in the stechec2 documentation
+
+License:
+This code is licensed under the CC0 license for the prologin.ml file, and GPLv2 for all other files (that are from stechec2).
